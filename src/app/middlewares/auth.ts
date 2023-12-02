@@ -2,34 +2,58 @@ import { NextFunction, Response } from 'express';
 import httpStatus from 'http-status';
 import ApiError from '../../errors/apiError';
 import { JwtHelper } from '../../helpers/jwtHelper';
-import { IAuthUser } from '../../interfaces/auth';
 
 const auth =
   (...requiredRoles: string[]) =>
-    async (req: any, res: Response, next: NextFunction) => {
-      return new Promise(async (resolve, reject) => {
-        const token = req.headers.authorization;
+  async (req: any, res: Response, next: NextFunction) => {
+    try {
+      //get authorization token
+      const token = req.headers.authorization;
+      if (!token) {
+        throw new ApiError(httpStatus.UNAUTHORIZED, 'You are not authorized');
+      }
+      // verify token
+      let verifiedUser = null;
 
-        if (!token) {
-          return reject(new ApiError(httpStatus.UNAUTHORIZED, 'Unauthorized'));
-        }
+      verifiedUser = JwtHelper.verifyToken(token);
 
-        const verifiedUser: IAuthUser = JwtHelper.verifyToken(token);
+      if (!verifiedUser) {
+        throw new ApiError(httpStatus.UNAUTHORIZED, 'You are not authorized');
+      }
 
-        if (!verifiedUser) {
-          return reject(new ApiError(httpStatus.UNAUTHORIZED, 'Unauthorized'));
-        }
+      req.user = verifiedUser; // role  , userid
 
-        req.user = verifiedUser;
+      // role diye guard korar jnno
+      if (requiredRoles.length && !requiredRoles.includes(verifiedUser.role)) {
+        throw new ApiError(httpStatus.FORBIDDEN, 'Forbidden');
+      }
+      next();
+    } catch (error) {
+      next(error);
+    }
+    // return new Promise(async (resolve, reject) => {
+    //   const token = req.headers.authorization;
 
-        if (requiredRoles.length && !requiredRoles.includes(verifiedUser.role)) {
-          return reject(new ApiError(httpStatus.FORBIDDEN, 'Forbidden'));
-        }
+    //   if (!token) {
+    //     return reject(new ApiError(httpStatus.UNAUTHORIZED, 'Unauthorized'));
+    //   }
 
-        resolve(verifiedUser);
-      })
-        .then(() => next())
-        .catch((err) => next(err));
-    };
+    //   const verifiedUser: IAuthUser = JwtHelper.verifyToken(token);
+
+    //   if (!verifiedUser) {
+    //     return reject(new ApiError(httpStatus.UNAUTHORIZED, 'Unauthorized'));
+    //   }
+
+    //   req.user = verifiedUser;
+
+    //   if (requiredRoles.length && !requiredRoles.includes(verifiedUser.role)) {
+    //     return reject(new ApiError(httpStatus.FORBIDDEN, 'Forbidden'));
+    //   }
+
+    //   resolve(verifiedUser);
+    // })
+    //   .then(() => next())
+    //   .catch((err) => next(err));
+  };
 
 export default auth;
